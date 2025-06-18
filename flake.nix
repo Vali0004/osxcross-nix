@@ -43,9 +43,11 @@
 
     pkgs = import nixpkgs { inherit system overlays; };
   in {
-    packages.${system}.clang = pkgs.clang_20;
-    packages.${system}.lld = pkgs.lld_20;
-    packages.${system}.llvm = pkgs.llvm_20;
+    packages.${system} = {
+      clang = pkgs.clang_20;
+      lld = pkgs.lld_20;
+      llvm = pkgs.llvm_20;
+    };
 
     devShell.${system} = pkgs.mkShell {
       name = "osxcross-dev";
