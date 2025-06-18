@@ -16,28 +16,34 @@
         };
 
         llvmPackagesSet = prev.recurseIntoAttrs (
-          prev.callPackage
-            "${prev.path}/pkgs/development/compilers/llvm"
-            {
-              version = "20.1.5-osxcross";
-              src_llvm = llvmSrc;
-              src_clang = llvmSrc;
-              src_lld = llvmSrc;
-              src_lldb = llvmSrc;
-              src_bolt = null;
-              src_openmp = null;
+          prev.callPackage "${prev.path}/pkgs/development/compilers/llvm" {
+            version = "20.1.5-osxcross";
+            src_llvm = llvmSrc;
+            src_clang = llvmSrc;
+            src_lld = llvmSrc;
+            src_lldb = llvmSrc;
+            src_bolt = null;
+            src_openmp = null;
+            
+            extraCMakeFlags = [
+              "-DCLANG_RESOURCE_DIR=lib/clang/20.1.5"
+            ];
 
-              extraPatches = {
-                llvm = [ ./unbreak-apple-lld.patch ];
-                lld  = [ ./unbreak-apple-lld.patch ];
-              };
-            }
+            extraPatches = {
+              llvm = [ ./unbreak-apple-lld.patch ];
+              lld  = [ ./unbreak-apple-lld.patch ];
+            };
+          }
         );
+        libtapi = pkgs.callPackage ./pkgs/apple-libtapi { llvm = pkgs.llvm_20; };
+        cctools = pkgs.callPackage ./pkgs/cctools { inherit libtapi; };
       in {
         llvmPackages_20 = llvmPackagesSet."20";
         clang_20 = llvmPackagesSet."20".clang;
         lld_20 = llvmPackagesSet."20".lld;
         llvm_20 = llvmPackagesSet."20".llvm;
+
+        inherit libtapi cctools;
       }
     )];
 
