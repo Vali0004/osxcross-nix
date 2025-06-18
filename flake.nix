@@ -44,9 +44,10 @@
     pkgs = import nixpkgs { inherit system overlays; };
   in {
     packages.${system} = {
-      clang = pkgs.clang_20;
-      lld = pkgs.lld_20;
-      llvm = pkgs.llvm_20;
+      llvmPackages_20 = pkgs.llvmPackages_20;
+      clang_20 = pkgs.clang_20;
+      lld_20 = pkgs.lld_20;
+      llvm_20 = pkgs.llvm_20;
     };
 
     devShell.${system} = pkgs.mkShell {
