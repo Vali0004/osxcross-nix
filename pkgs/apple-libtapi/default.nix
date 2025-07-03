@@ -1,4 +1,14 @@
-{ stdenv, cmake, ninja, llvm, clang, fetchFromGitHub, python3, lib, makeWrapper }:
+{ stdenv
+, cmake
+, ninja
+, llvm
+, clang
+, fetchFromGitHub
+, python3
+, libxar ? null
+, lib
+, makeWrapper
+}:
 
 stdenv.mkDerivation rec {
   pname = "apple-libtapi";
@@ -18,8 +28,8 @@ stdenv.mkDerivation rec {
 
   cmakeFlags = [
     "-DCMAKE_BUILD_TYPE=Release"
-    "-DCMAKE_C_COMPILER=clang"
-    "-DCMAKE_CXX_COMPILER=clang++"
+    "-DCMAKE_C_COMPILER=${clang}/bin/clang"
+    "-DCMAKE_CXX_COMPILER=${clang}/bin/clang++"
     "-DLLVM_INCLUDE_TESTS=OFF"
     "-DTAPI_REPOSITORY_STRING=${version}"
     "-DTAPI_FULL_VERSION=11.0.0"
@@ -28,7 +38,7 @@ stdenv.mkDerivation rec {
     "-DPYTHON_EXECUTABLE=${python3.interpreter}"
     "-GNinja"
   ];
-  
+
   preConfigure = ''
     export CXXFLAGS="$CXXFLAGS -I${src}/src/llvm/projects/clang/include"
   '';
@@ -42,11 +52,7 @@ stdenv.mkDerivation rec {
 
   installPhase = ''
     runHook preInstall
-    mkdir -p $out/lib $out/include
-
-    cp -rv lib/* $out/lib/
-    cp -rv include/* $out/include/
-
+    ninja install-libtapi install-tapi-headers
     runHook postInstall
   '';
 

@@ -1,4 +1,12 @@
-{ stdenv, fetchFromGitHub, libdispatch, libtapi, llvm, clang, lib }:
+{ stdenv
+, fetchFromGitHub
+, libdispatch
+, libtapi
+, llvm
+, clang
+, libxar ? null, libfts ? null
+, lib
+}:
 
 stdenv.mkDerivation rec {
   pname = "cctools-port";
@@ -11,11 +19,17 @@ stdenv.mkDerivation rec {
     hash = "sha256-kQApmHaL3iTxrH58XVFYDnyK6iR0//Uaz8wcb7dFWF4=";
   };
 
-  buildInputs = [ libdispatch libtapi llvm clang ];
+  buildInputs = [ libdispatch libtapi llvm clang ]
+    ++ lib.optional (libxar != null) libxar
+    ++ lib.optional (libfts != null) libfts;
+
+  nativeBuildInputs = [ ];
 
   preConfigure = ''
     export CC=${clang}/bin/clang
     export CXX=${clang}/bin/clang++
+    export CFLAGS="-I${libtapi}/include"
+    export LDFLAGS="-L${libtapi}/lib -ltapi"
   '';
 
   configurePhase = ''
@@ -27,9 +41,7 @@ stdenv.mkDerivation rec {
       --with-llvm-config=${llvm.dev}/bin/llvm-config
   '';
 
-  buildPhase = ''
-    make
-  '';
+  buildPhase = "make -j$NIX_BUILD_CORES";
 
   installPhase = ''
     make install

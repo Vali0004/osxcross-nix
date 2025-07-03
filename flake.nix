@@ -1,10 +1,11 @@
 {
-  description = "osxcross dev env with overridden LLVM and proper cctools/ld64 integration";
+  description = "osxcross dev env";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
   outputs = { self, nixpkgs }: let
-    system = "x86_64-linux";
+    hostSystem = "x86_64-linux";
+    targetSystem = "x86_64-apple-darwin20.4";
 
     overlays = [(final: prev: let
       llvmSrc = prev.fetchFromGitHub {
@@ -24,6 +25,9 @@
           src_bolt = null;
           src_openmp = null;
 
+          libcxx = true;
+          useLibcxx = true;
+
           extraCMakeFlags = [
             "-DCLANG_RESOURCE_DIR=lib/clang/20.1.5"
           ];
@@ -37,69 +41,90 @@
 
       macosxSDK = prev.callPackage ./sdk.nix {};
 
+      libdispatch = prev.swift-corelibs-libdispatch;
+      libxar = prev.xar;
+
       libtapi = prev.callPackage ./pkgs/apple-libtapi {
+        inherit libxar;
         llvm = llvmPackagesSet."20".llvm;
       };
 
       cctools = prev.callPackage ./pkgs/cctools-port {
-        inherit libtapi;
+        inherit libtapi libdispatch libxar;
       };
 
-      wrappedClang = prev.writeShellScriptBin "o64-clang" ''
-        exec ${llvmPackagesSet."20".clang}/bin/clang \
-          --target=x86_64-apple-darwin20.4 \
-          -isysroot ${macosxSDK} \
-          -mmacosx-version-min=11.0 \
-          -fuse-ld=ld64 \
-          -B${cctools}/bin \
-          "$@"
-      '';
+      wrappedClang = prev.stdenv.mkDerivation {
+        pname = "o64-clang-wrapper";
+        version = "20.1.5";
 
-      wrappedClangPP = prev.writeShellScriptBin "o64-clang++" ''
-        exec ${llvmPackagesSet."20".clang}/bin/clang++ \
-          --target=x86_64-apple-darwin20.4 \
-          -isysroot ${macosxSDK} \
-          -mmacosx-version-min=11.0 \
-          -fuse-ld=ld64 \
-          -B${cctools}/bin \
-          "$@"
-      '';
+        nativeBuildInputs = [ prev.makeWrapper ];
 
+        dontUnpack = true;
+
+        installPhase = ''
+          mkdir -p $out/bin
+
+          makeWrapper ${llvmPackagesSet."20".clang.cc}/bin/clang $out/bin/clang \
+            --set PATH "${cctools}/bin:$PATH" \
+            --add-flags "--target=x86_64-apple-darwin20.4" \
+            --add-flags "-isysroot ${macosxSDK}/SDK/MacOSX11.3.sdk" \
+            --add-flags "-mmacosx-version-min=11.0" \
+            --add-flags "-fuse-ld=${cctools}/bin/ld64"
+
+          makeWrapper ${llvmPackagesSet."20".clang.cc}/bin/clang++ $out/bin/clang++ \
+            --set PATH "${cctools}/bin:$PATH" \
+            --add-flags "--target=x86_64-apple-darwin20.4" \
+            --add-flags "-isysroot ${macosxSDK}/SDK/MacOSX11.3.sdk" \
+            --add-flags "-mmacosx-version-min=11.0" \
+            --add-flags "-fuse-ld=${cctools}/bin/ld64"
+        '';
+      };
     in {
       llvmPackages_20 = llvmPackagesSet."20";
       clang_20 = llvmPackagesSet."20".clang;
       lld_20 = llvmPackagesSet."20".lld;
       llvm_20 = llvmPackagesSet."20".llvm;
-      inherit macosxSDK libtapi cctools wrappedClang wrappedClangPP;
-    })];  
-
-    pkgs = import nixpkgs { inherit system overlays; };
-  in {
-    packages.${system} = {
-      inherit (pkgs) llvmPackages_20 clang_20 lld_20 llvm_20 wrappedClang wrappedClangPP macosxSDK;
+      inherit macosxSDK libtapi cctools wrappedClang;
+    })];
+    
+    pkgs = import nixpkgs {
+      inherit overlays;
+      system = hostSystem;
     };
 
-    devShell.${system} = pkgs.mkShell {
+    pkgsCross = import nixpkgs {
+      system = hostSystem;
+      crossSystem = {
+        config = targetSystem;
+      };
+      overlays = overlays ++ [
+        (final: prev: {
+          stdenv = prev.libcxxStdenv;
+        })
+      ];
+    };
+  in {
+    packages.${hostSystem} = {
+      inherit (pkgsCross) stdenv;
+      osxcrossClang = pkgsCross.wrappedClang;
+    };
+
+    devShell.${hostSystem} = pkgs.mkShell {
       name = "osxcross-dev";
 
       buildInputs = with pkgs; [
         automake autoconf cmake ninja
         curl wget git patch python3
         openssl libxml2 bzip2 xz unzip zlib zlib-ng pkg-config
-        clang_20 lld_20 cctools wrappedClang wrappedClangPP
+        wrappedClang lld_20 cctools macosxSDK
       ];
 
       shellHook = ''
-        export CC=o64-clang
-        export CXX=o64-clang++
-        export LD=ld64
-        export TARGET=x86_64-apple-darwin20.4
+        export CC=${pkgs.wrappedClang}/bin/clang
+        export CXX=${pkgs.wrappedClang}/bin/clang++
+        export LD=${pkgs.lld_20}/bin/ld64
+        export SYSROOT=${pkgs.macosxSDK}
         export OSX_VERSION_MIN=11.0
-        export SDKROOT=${pkgs.macosxSDK}
-
-        echo "Using osxcross toolchain:"
-        which $CC
-        $CC --version
       '';
     };
   };

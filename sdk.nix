@@ -14,7 +14,7 @@ stdenv.mkDerivation {
   sourceRoot = ".";
 
   installPhase = ''
-    mkdir -p $out
-    cp -r MacOSX11.3.sdk/* $out/
+    mkdir -p $out/SDK
+    cp -r MacOSX11.3.sdk $out/SDK/
   '';
 }
