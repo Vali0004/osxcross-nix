@@ -108,7 +108,8 @@
       inherit (pkgsCross) stdenv;
       osxcrossClang = pkgsCross.wrappedClang;
     };
-    inherit (pkgs) overlays;
+  
+    overlays = overlays;
 
     devShell.${hostSystem} = pkgs.mkShell {
       name = "osxcross-dev";
